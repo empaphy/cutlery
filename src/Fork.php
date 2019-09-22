@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Cutlery;
 
 use Closure;
-use PDO;
 use ReflectionObject;
 use Throwable;
 
@@ -156,7 +155,7 @@ class Fork
      */
     public static function ensureSerializable($var)
     {
-        if ($var instanceof Closure || $var instanceof PDO || is_resource($var)) {
+        if ($var instanceof Closure || is_resource($var) || $var instanceof \PDO) {
 
             // Remove most common unserializable objects.
             return null;
