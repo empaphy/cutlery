@@ -1,0 +1,23 @@
+{
+  "name": "yogarine/cutlery",
+  "description": "Cutlery - A Forking library for PHP",
+  "type": "library",
+  "homepage": "https://bitbucket.org/Yogarine/cutlery",
+  "minimum-stability": "dev",
+  "prefer-stable": true,
+  "license": "BSD-2-Clause",
+  "authors": [
+    {
+      "name": "Alwin Garside",
+      "email": "alwin@garsi.de"
+    }
+  ],
+  "require": {
+    "php": ">=7.1.0"
+  },
+  "autoload": {
+    "psr-0": {
+      "Cutlery\\": "src/"
+    }
+  }
+}
