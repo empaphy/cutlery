@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace Cutlery;
 
 use Closure;
+use Exception;
 use ReflectionObject;
 use Throwable;
 
 class Fork
 {
-    public const DELIMITER = "\n__CUTLERY_FORK_END_DELIMITER__\n";
+    public const ACTION_RETURN = 'return';
+    public const ACTION_THROW  = 'throw';
+    public const DELIMITER     = "\n__CUTLERY_FORK_END_DELIMITER__\n";
 
+    public const SOCKET_BUFFER_SIZE = 16777216;
     public const BUFFER_SIZE = 1024;
 
     /**
@@ -55,20 +59,42 @@ class Fork
                 try {
                     // We're in the child process, run the $callable.
                     $result = $callable();
-
-                    // Write results to socket.
-                    $buffers = str_split(
-                        serialize(self::ensureSerializable($result)) . self::DELIMITER,
-                        self::BUFFER_SIZE
-                    );
-
-                    foreach ($buffers as $buffer) {
-                        socket_write($this->socketPair[0], $buffer, self::BUFFER_SIZE);
-                    }
+                    $data   = self::ACTION_RETURN . ',' . serialize(self::ensureSerializable($result));
                 } catch (Throwable $t) {
                     $status = 1;
+                    try {
+                        $data = self::ACTION_THROW . ',' . serialize(self::ensureSerializable($t));
+                    } catch (Throwable $t2) {
+                        try {
+                            $exception = new Exception($t->getMessage(), $t->getCode(), $t);
+                            $data = self::ACTION_THROW . ',' . serialize($exception);
+                        } catch (Throwable $t3) {
+                            $data = self::ACTION_THROW . ',' . serialize(null);
+                        }
+                    }
                 } finally {
+                    $data .= self::DELIMITER;
+                    socket_set_option($this->socketPair[0], SOL_SOCKET, SO_SNDBUF, strlen($data));
+
+                    $read   = [];
+                    $write  = [$this->socketPair[0]];
+                    $except = [];
+
+                    $socketCount = socket_select($read, $write, $except, 1);
+                    if ($socketCount) {
+                        if (false === socket_write($this->socketPair[0], $data)) {
+                            throw new ForkException(
+                                'Failed to write to socket: ' . socket_strerror(socket_last_error())
+                            );
+                        }
+                    } else {
+                        throw new ForkException(
+                            'Parent stopped listening on socket: ' . socket_strerror(socket_last_error())
+                        );
+                    }
+
                     socket_close($this->socketPair[0]);
+                    $this->socketPair[0] = null;
                 }
 
                 exit($status);
@@ -76,6 +102,19 @@ class Fork
 
             default:
                 break;
+        }
+    }
+
+    public function __destruct()
+    {
+        try {
+            foreach ($this->socketPair as $socket) {
+                if (null !== $socket) {
+                    socket_close($socket);
+                }
+            }
+        } catch (Throwable $t) {
+            // Ignore.
         }
     }
 
@@ -94,39 +133,61 @@ class Fork
     public function wait()
     {
         $delimiterPosition = false;
-        $data = '';
+        $buffer = '';
+
+        socket_set_nonblock($this->socketPair[1]);
 
         do {
             $read   = [$this->socketPair[1]];
             $write  = [];
             $except = [];
-            $buffer = '';
 
-            /** @noinspection PhpAssignmentInConditionInspection */
-            while($socketCount = socket_select($read, $write, $except, 1)) {
-                $data = socket_read($this->socketPair[1], self::BUFFER_SIZE);
-
-                if ($data) {
-                    $delimiterPosition = strpos($data, self::DELIMITER);
-                    if (false !== $delimiterPosition) {
-                        $data = substr($data, 0, $delimiterPosition);
+            $socketCount = socket_select($read, $write, $except, 1);
+            if ($socketCount) {
+                while(($data = socket_read($this->socketPair[1], self::BUFFER_SIZE))) {
+                    if ($data) {
+                        $buffer .= $data;
                     }
+                }
 
-                    $buffer .= $data;
+                $delimiterPosition = strpos($buffer, self::DELIMITER);
+                if (false !== $delimiterPosition) {
+                    $buffer = substr($buffer, 0, $delimiterPosition);
+                }
+            } elseif (false === $socketCount) {
+                throw new ForkException(
+                    'socket_select() failed: ' . socket_strerror(socket_last_error($this->socketPair[1]))
+                );
+            } else {
+                $pid = pcntl_waitpid($this->pid, $status, WNOHANG);
+                if (-1 == $pid) {
+                    throw new ForkException("Child process (pid {$this->pid}) exited too early: " . $pid);
                 }
             }
+        } while (false === $delimiterPosition);
 
-            if (false === $socketCount) {
-                throw new ForkException("socket_select() failed");
-            }
-        } while (false !== $data && false === $delimiterPosition);
+        // Wait for child process to finish.
+        pcntl_waitpid($this->pid, $status);
 
         socket_close($this->socketPair[1]);
+        $this->socketPair[1] = null;
 
-        // Wait for the child to finish.
-//        pcntl_waitpid($this->pid, $status);
+        [$action, $result] = explode(',', $buffer, 2);
 
-        return unserialize($buffer);
+        switch ($action) {
+            case self::ACTION_RETURN:
+                return unserialize($result);
+
+            case self::ACTION_THROW:
+                $throwable = unserialize($result);
+                if (null === $throwable) {
+                    $throwable = new ForkException("Invalid Throwable recieved.");
+                }
+                throw $throwable;
+
+            default:
+                throw new ForkException("Invalid action");
+        }
     }
 
     /**
@@ -162,10 +223,16 @@ class Fork
 
         } elseif (is_object($var)) {
 
-            $clone = clone $var;
+            $reflectionObject = new ReflectionObject($var);
+
+            if ($reflectionObject->isCloneable()) {
+                $clone = clone $var;
+            } else {
+                $clone = $var;
+            }
 
             // Iterate through properties and recursively call this method on them.
-            foreach ((new ReflectionObject($var))->getProperties() as $property) {
+            foreach ($reflectionObject->getProperties() as $property) {
                 $property->setAccessible(true);
 
                 $value = $property->getValue($var);
