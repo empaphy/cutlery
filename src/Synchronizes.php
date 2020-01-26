@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Cutlery;
 
 use Mockery\Container;
@@ -20,6 +18,8 @@ trait Synchronizes
      * @param \Mockery\Container $container
      * @param object $partialObject
      * @return void
+     *
+     * @noinspection PhpUnused
      */
     public function mockery_init(\Mockery\Container $container = null, $partialObject = null)
     {
@@ -101,7 +101,7 @@ trait Synchronizes
             if ($delimiterPosition !== false) {
                 $actionBuffer    = substr($this->buffer, 0, $delimiterPosition);
                 $this->buffer    = substr($this->buffer, $delimiterPosition + $delimiterLength);
-                [$action, $data] = explode(',', $actionBuffer, 2);
+                list($action, $data) = explode(',', $actionBuffer, 2);
                 $this->_cutlery_synchronizer_performAction($action, $data);
             }
         }

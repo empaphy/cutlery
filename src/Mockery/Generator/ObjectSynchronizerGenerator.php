@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Cutlery\Mockery\Generator;
 
 use Mockery\Generator\MockConfiguration;

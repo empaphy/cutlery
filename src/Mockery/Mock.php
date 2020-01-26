@@ -1,5 +1,11 @@
 <?php
 
+/**
+ * @noinspection PhpHierarchyChecksInspection
+ * @noinspection PhpIllegalPsrClassPathInspection
+ * @noinspection PhpUnusedAliasInspection
+ */
+
 namespace Mockery;
 
 use Mockery\MockInterface;

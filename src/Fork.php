@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Cutlery;
 
 use Closure;
@@ -11,12 +9,12 @@ use Throwable;
 
 class Fork
 {
-    public const ACTION_RETURN = 'return';
-    public const ACTION_THROW  = 'throw';
-    public const DELIMITER     = "\n__CUTLERY_FORK_END_DELIMITER__\n";
+    const ACTION_RETURN = 'return';
+    const ACTION_THROW  = 'throw';
+    const DELIMITER     = "\n__CUTLERY_FORK_END_DELIMITER__\n";
 
-    public const SOCKET_BUFFER_SIZE = 16777216;
-    public const BUFFER_SIZE = 1024;
+    const SOCKET_BUFFER_SIZE = 16777216;
+    const BUFFER_SIZE = 1024;
 
     /**
      * @var callable[]
@@ -172,7 +170,7 @@ class Fork
         socket_close($this->socketPair[1]);
         $this->socketPair[1] = null;
 
-        [$action, $result] = explode(',', $buffer, 2);
+        list($action, $result) = explode(',', $buffer, 2);
 
         switch ($action) {
             case self::ACTION_RETURN:
@@ -216,6 +214,7 @@ class Fork
      */
     public static function ensureSerializable($var)
     {
+        /** @noinspection PhpComposerExtensionStubsInspection */
         if ($var instanceof Closure || is_resource($var) || $var instanceof \PDO) {
 
             // Remove most common unserializable objects.

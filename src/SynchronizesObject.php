@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Cutlery;
 
 trait SynchronizesObject
@@ -158,7 +156,7 @@ trait SynchronizesObject
                 return $this->_cutlery_synchronizer_target->{$data};
 
             case Synchronizer::ACTION_SET:
-                [$name, $value] = explode(',', $data, 2);
+                list($name, $value) = explode(',', $data, 2);
                 $this->_cutlery_synchronizer_target->{$name} = unserialize($value);
                 return null;
 
@@ -173,7 +171,7 @@ trait SynchronizesObject
                 return (string) $this->_cutlery_synchronizer_target;
 
             case Synchronizer::ACTION_CALL:
-                [$name, $arguments] = explode(',', $data, 2);
+                list($name, $arguments) = explode(',', $data, 2);
                 return call_user_func_array([$this->_cutlery_synchronizer_target, $name], unserialize($arguments));
 
             default:

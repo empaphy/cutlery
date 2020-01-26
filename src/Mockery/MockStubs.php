@@ -1,9 +1,8 @@
 <?php
-/**
- * @noinspection PhpUnusedParameterInspection,PhpFullyQualifiedNameUsageInspection
- */
 
-declare(strict_types=1);
+/**
+ * @noinspection PhpUnusedParameterInspection
+ */
 
 namespace Cutlery\Mockery;
 
